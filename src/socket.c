@@ -26,6 +26,7 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <errno.h>
 
 #include "mruby.h"
 #include "mruby/array.h"
@@ -338,7 +339,11 @@ mrb_basicsocket_recv(mrb_state *mrb, mrb_value self)
   buf = mrb_str_buf_new(mrb, maxlen);
   n = recv(socket_fd(mrb, self), RSTRING_PTR(buf), maxlen, flags);
   if (n == -1)
-    mrb_sys_fail(mrb, "recv");
+  {
+    char msg[512];
+    sprintf(msg,"recv_bs(%d/%s)",errno,strerror(errno));    
+    mrb_sys_fail(mrb,msg);
+  }
   mrb_str_resize(mrb, buf, n);
   return buf;
 }
@@ -742,23 +747,28 @@ mrb_win32_basicsocket_sysread(mrb_state *mrb, mrb_value self)
   ret = recv(sd, RSTRING_PTR(buf), maxlen, 0);
 
   switch (ret) {
-    case 0: /* EOF */
-      if (maxlen == 0) {
-        buf = mrb_str_new_cstr(mrb, "");
-      } else {
-        mrb_raise(mrb, E_EOF_ERROR, "sysread failed: End of File");
-      }
-      break;
-    case SOCKET_ERROR: /* Error */
-      mrb_sys_fail(mrb, "recv");
-      break;
-    default:
-      if (RSTRING_LEN(buf) != ret) {
-        buf = mrb_str_resize(mrb, buf, ret);
-      }
-      break;
+  case 0: /* EOF */
+    if (maxlen == 0) {
+      buf = mrb_str_new_cstr(mrb, "");
+    } else {
+      mrb_raise(mrb, E_EOF_ERROR, "sysread failed: End of File");
+    }
+    break;
+  case SOCKET_ERROR: /* Error */
+  {
+    char msg[512];
+    sprintf(msg,"recv_se(%d/%s)",errno,strerror(errno));    
+    mrb_sys_fail(mrb,msg);
   }
-
+  
+  break;
+  default:
+    if (RSTRING_LEN(buf) != ret) {
+      buf = mrb_str_resize(mrb, buf, ret);
+    }
+    break;
+  }
+  
   return buf;
 }
 
